@@ -1,0 +1,11 @@
+{
+  "name": "Beauty",
+  "frx": {
+    "type": "3d_anim",
+    "3d_anim": {
+      "type": "vfx"
+    }
+  },
+  "rotation_vector": true,
+  "recordDuration": 10
+}
