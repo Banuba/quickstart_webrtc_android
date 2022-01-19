@@ -278,7 +278,7 @@ public class CameraFragment extends Fragment {
         CameraEnumerator enumerator = new Camera2Enumerator(requireActivity());
         String[] deviceNames = enumerator.getDeviceNames();
         mCaptureInfo = VideoCaptureUtils.getCaptureInformation(enumerator, CaptureFrame.PRESET1280X720);
-        mCamera2Capturer = new Camera2Capturer(requireActivity(), mCaptureInfo.deviceName, new Camera2Enumerator(requireActivity()), new CameraEventsHandler());
+        mCamera2Capturer = new Camera2Capturer(requireActivity(), mCaptureInfo.deviceName, new CameraEventsHandler());
         mVideoFrameProcessor = new BanubaProcessor();
         mVideoFrameProcessor.setSink(videoFrame -> mTextureViewRenderer.onFrame(videoFrame));
         mSurfaceTextureHelper = SurfaceTextureHelper.create("CaptureThread", EglBase.create().getEglBaseContext(), false);

@@ -44,7 +44,7 @@ android {
     }
 }
 dependencies {
-    implementation fileTree(dir: "libs", include: ["*.jar"])
+    implementation group: 'org.webrtc', name: 'google-webrtc', version: '1.0.32006'
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     implementation 'androidx.recyclerview:recyclerview:1.1.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
@@ -60,7 +60,6 @@ dependencies {
     implementation project(':BNBWebRTC')
     implementation fileTree(dir: "../BNBWebRTC/libs/", include: ["*.aar"])
 
-    compile files('libs/libwebrtc.jar')
     //File selector
     implementation 'com.github.TutorialsAndroid:FilePicker:v8.0.19'
 
