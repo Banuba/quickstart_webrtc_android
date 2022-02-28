@@ -1,0 +1,14 @@
+0.38.2 flow/frx_prior.tflite
+0.38.2 flow/landmarks_128.tflite
+0.38.3 flow/face_detector_online.tflite
+0.38.2 flow/landmarks_96.tflite
+0.38.2 flow/eye_corrector.tflite
+0.38.2 flow/bg_vert.tflite
+0.38.2 flow/bg_horiz.tflite
+0.38.2 flow/hair_horiz.tflite
+0.38.2 flow/hair_vert.tflite
+0.38.2 flow/eyes_segmentation.tflite
+1.2.0 flow/lips_segmentation.tflite
+1.0.0 other_assets
+--------
+2.382.21

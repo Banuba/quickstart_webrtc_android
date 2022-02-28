@@ -12,18 +12,15 @@ import android.util.Size;
 
 import androidx.annotation.NonNull;
 
-import com.banuba.sdk.effect_player.ConsistencyMode;
-import com.banuba.sdk.effect_player.EffectPlayer;
-import com.banuba.sdk.effect_player.EffectPlayerConfiguration;
-import com.banuba.sdk.effect_player.NnMode;
+import com.banuba.sdk.effect_player.JsCallback;
 import com.banuba.sdk.manager.BanubaSdkManager;
 import com.banuba.sdk.offscreen.BufferAllocator;
 import com.banuba.sdk.offscreen.ImageDebugUtils;
 import com.banuba.sdk.offscreen.ImageProcessResult;
 import com.banuba.sdk.offscreen.OffscreenEffectPlayer;
 import com.banuba.sdk.offscreen.OffscreenEffectPlayerConfig;
-import com.banuba.sdk.offscreen.OffscreenSimpleConfig;
 import com.banuba.sdk.recognizer.FaceSearchMode;
+import com.banuba.sdk.recognizer.UtilityManager;
 import com.banuba.sdk.types.FullImageData;
 import com.banuba.sdk.internal.utils.OrientationHelper;
 
@@ -34,12 +31,11 @@ import org.webrtc.VideoSink;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
-import java.util.Objects;
 import java.util.Queue;
 
 public class BanubaProcessor implements IVideoFrameProcessor {
-//    private OffscreenEffectPlayerConfig mEffectPlayerConfig;
-    private OffscreenEffectPlayer mEffectPlayer;
+    private OffscreenEffectPlayerConfig mEffectPlayerConfig;
+    private OffscreenEffectPlayer mOffscreenEffectPlayer;
     private VideoSink mVideoSink;
     private boolean mProcessorEnabled = false;
     private Handler mHandler;
@@ -55,34 +51,19 @@ public class BanubaProcessor implements IVideoFrameProcessor {
     @Override
     public void onCaptureCreate(Context context, Handler handler, int width, int height) {
         // Uncomment if external resources` archive is used.
-        //BanubaSdkManager.initialize(context, KEY, context.getFilesDir().toString() + "/banuba/bnb-resources/bnb-resources");
+        BanubaSdkManager.initialize(context, KEY, context.getFilesDir().toString() + "/banuba/bnb-resources/bnb-resources");
+        // Init must be called before.
+        if (!UtilityManager.getBanubaSdkResourcesVersionString().equals("2.382.21")) {
+            throw new Error("Invalid NN resource package version");
+        }
         this.mContext = context;
         this.mHandler = handler;
-
-        BanubaSdkManager.initialize(context, KEY);
-
-        EffectPlayerConfiguration ep_config = new EffectPlayerConfiguration(
-                width, height,
-                NnMode.ENABLE,
-                FaceSearchMode.MEDIUM,
-                false,
-                false
-        );
-        EffectPlayer ext_ep = Objects.requireNonNull(EffectPlayer.create(ep_config));
-        ext_ep.setRenderConsistencyMode(ConsistencyMode.ASYNCHRONOUS_CONSISTENT);
-
-        OffscreenSimpleConfig oep_config = OffscreenSimpleConfig.newBuilder(mBuffersQueue)
-                .setDebugSaveFrames(debugSaveFrames).setDebugSaveFramesDivider(framesDivider)
-                .build();
-        mEffectPlayer = new OffscreenEffectPlayer(context, ext_ep, new Size(width, height), oep_config);
-/*
         mEffectPlayerConfig = OffscreenEffectPlayerConfig.newBuilder(new Size(width, height), mBuffersQueue)
             .setDebugSaveFrames(debugSaveFrames).setDebugSaveFramesDivider(framesDivider)
-            .setFaceSearchMode(FaceSearchMode.MEDIUM)
+            .setFaceSearchMode(FaceSearchMode.MEDIUM) // <- Perf tradeoff by CPU usage - Quality, by default is good, but consumed more CPU.
             .build();
-        mEffectPlayer = new OffscreenEffectPlayer(context, mEffectPlayerConfig, KEY);
- */
-        mEffectPlayer.setImageProcessListener(oepImageResult -> {
+        mOffscreenEffectPlayer = new OffscreenEffectPlayer(context, mEffectPlayerConfig, KEY);
+        mOffscreenEffectPlayer.setImageProcessListener(oepImageResult -> {
             if (mVideoSink != null && oepImageResult.getOrientation().getRotationAngle() == mLastFrameRotation) {
                 VideoFrame videoFrame = convertOEPImageResult2VideoFrame(oepImageResult);
                 mVideoSink.onFrame(videoFrame);
@@ -100,7 +81,7 @@ public class BanubaProcessor implements IVideoFrameProcessor {
 
     @Override
     public void onCaptureDestroy() {
-        mEffectPlayer.release();
+        mOffscreenEffectPlayer.release();
     }
 
     @Override
@@ -126,7 +107,7 @@ public class BanubaProcessor implements IVideoFrameProcessor {
         }
         mFrameNumber++;
 
-        final boolean isRequireMirroring = isFrontCamera;
+        final boolean isRequireMirroring = true;//isFrontCamera;
         int deviceOrientationAngle = OrientationHelper.getInstance(mContext).getDeviceOrientationAngle();
         if (!isFrontCamera) {
             if (deviceOrientationAngle == 0) {
@@ -150,31 +131,44 @@ public class BanubaProcessor implements IVideoFrameProcessor {
                 i420Buffer.getStrideU(), i420Buffer.getStrideV(), 1, 1, 1, orientation);
         Log.d("fullImageData", "" + fullImageData.getSize().getHeight() + " " + fullImageData.getSize().getWidth());
 
-        mEffectPlayer.processFullImageData(fullImageData, () -> mHandler.post(() -> i420Buffer.release()), videoFrame.getTimestampNs());
+        mOffscreenEffectPlayer.processFullImageData(fullImageData, () -> mHandler.post(() -> i420Buffer.release()), videoFrame.getTimestampNs());
     }
 
     public VideoFrame convertOEPImageResult2VideoFrame(ImageProcessResult result) {
+        if (result.getFormat() != ImageFormat.YUV_420_888) {
+            throw new RuntimeException("Unexpected image format");
+        }
+
         int width = result.getWidth();
         int height = result.getHeight();
-        int frameSize = width * height;
-        int yPos = 0;
-        int uPos = frameSize;
-        int vPos = frameSize * 5 / 4;
+        int frameSize = result.getBytesPerRow() * height;
+        int yPos = result.getOffsetOfPlane(0);
+        int uPos = result.getOffsetOfPlane(1);
+        int vPos = result.getOffsetOfPlane(2);
+        // Because of YUV representation as a single buffer containing all YUV planes,
+        // the U and V plane strides are equal to the Y plane stride.
+        int uSize = result.getBytesPerRowOfPlane(1) * result.getHeightOfPlane(1); // frameSize / 2;
+        // Since V plane rows are intermittent with U plane rows, the size of the V plane (in the common case)
+        // is less than the size of the U plane by half of the corresponding width of the plane in bytes.
+        int vSize =  result.getBytesPerRowOfPlane(2) * result.getHeightOfPlane(2) - result.getBytesPerRowOfPlane(2) / 2;
 
         final ByteBuffer buffer = result.getBuffer();
         mBuffersQueue.retainBuffer(buffer);
+
         buffer.position(yPos);
         buffer.limit(uPos);
         ByteBuffer dataY = buffer.slice();
         buffer.position(uPos);
-        buffer.limit(vPos);
+        buffer.limit(uPos + uSize);
         ByteBuffer dataU = buffer.slice();
         buffer.position(vPos);
-        buffer.limit(vPos + frameSize / 4);
+        buffer.limit(vPos + vSize);
         ByteBuffer dataV = buffer.slice();
 
         JavaI420Buffer I420buffer = JavaI420Buffer.wrap(result.getWidth(), result.getHeight(),
-                dataY, width, dataU, width / 2, dataV, width / 2, () -> {
+                dataY, result.getBytesPerRowOfPlane(0),
+                dataU, result.getBytesPerRowOfPlane(1),
+                dataV, result.getBytesPerRowOfPlane(2), () -> {
                     JniCommon.nativeFreeByteBuffer(buffer);
                 });
 
@@ -188,17 +182,17 @@ public class BanubaProcessor implements IVideoFrameProcessor {
 
     @Override
     public void callJsMethod(String method, String param) {
-        mEffectPlayer.callJsMethod(method, param);
+        mOffscreenEffectPlayer.callJsMethod(method, param);
     }
 
     @Override
     public void loadEffect(String effectName) {
-        mEffectPlayer.loadEffect(effectName);
+        mOffscreenEffectPlayer.loadEffect(effectName);
     }
 
     @Override
     public void unloadEffect() {
-        mEffectPlayer.unloadEffect();
+        mOffscreenEffectPlayer.unloadEffect();
     }
 
     @Override
@@ -207,7 +201,7 @@ public class BanubaProcessor implements IVideoFrameProcessor {
     }
 
     public OffscreenEffectPlayer getEffectPlayer() {
-        return mEffectPlayer;
+        return mOffscreenEffectPlayer;
     }
 
     private boolean isAndroidOrientationFixed() {
