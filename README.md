@@ -6,5 +6,5 @@ An example of banuba_sdk and WebRTC integration
 2. Copy `aar` files from the Banuba SDK archive into `libs` dir:
     `banuba_sdk-release.aar` => `BNBWebRTC/libs/`
     `banuba_effect_player-release.aar` => `BNBWebRTC/libs/`
-3. Copy and Paste your client token to `KEY` variable of `app/src/main/java/com/banuba/video/processor/app/BanubaProcessor.java`
+3. Copy and Paste your client token to `KEY` variable of `app/src/main/java/com/banuba/BanubaClientToken.java`
 4. Open the project in Android Studio and run the necessary target using the usual steps.
