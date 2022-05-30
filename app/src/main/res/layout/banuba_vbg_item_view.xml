@@ -20,9 +20,9 @@
     <ImageView
         android:id="@+id/iconView"
         android:layout_width="@dimen/dimen_64dp"
-        android:background="@android:color/darker_gray"
         android:layout_height="@dimen/dimen_64dp"
         android:layout_gravity="center"
+        android:background="@android:color/transparent"
         app:layout_constraintBottom_toBottomOf="@id/selectedFrameView"
         app:layout_constraintEnd_toEndOf="@id/selectedFrameView"
         app:layout_constraintStart_toStartOf="@id/selectedFrameView"

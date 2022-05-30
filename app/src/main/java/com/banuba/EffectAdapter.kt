@@ -7,18 +7,17 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.banuba.video.processor.EffectInfo
-import com.banuba.video.processor.EffectType
+import java.io.File
 
 class EffectAdapter : RecyclerView.Adapter<EffectAdapter.ViewHolder>() {
-    var effectList: List<EffectInfo>? = null
+    var effectList: List<String>? = null
         set(value) {
             if (field != value) {
                 field = value
                 notifyDataSetChanged()
             }
         }
-    private var selectedEffect: EffectInfo? = null
+    private var selectedEffect: String? = null
         set(value) {
             if (field != value) {
                 field = value
@@ -46,61 +45,40 @@ class EffectAdapter : RecyclerView.Adapter<EffectAdapter.ViewHolder>() {
         private val iconTv: TextView = itemView.findViewById(R.id.iconTv)
 
         fun bindViewHolder(holder: ViewHolder, position: Int) {
-            val info = effectList?.get(position) ?: return
-            when (info.type) {
-                EffectType.VBG -> {
-                    Glide.with(holder.itemView.context).load(info.filePath).into(holder.iconView)
+            val effectDir = effectList?.get(position) ?: return
+
+            if (effectDir == "off()") {
+                iconTv.visibility = View.VISIBLE
+                iconTv.text = "off()"
+                iconView.visibility = View.GONE
+            } else {
+                if (File(effectDir).exists()) {
+                    Glide.with(holder.itemView.context).load(effectDir + "/preview.png").into(holder.iconView)
                     iconTv.visibility = View.GONE
+                    iconTv.text = ""
                     iconView.visibility = View.VISIBLE
-                }
-                EffectType.Blur -> {
+                } else {
                     iconTv.visibility = View.VISIBLE
-                    iconTv.text = "Blur"
-                    iconView.visibility = View.GONE
-                }
-                EffectType.OFF -> {
-                    iconTv.visibility = View.VISIBLE
-                    iconTv.text = "OFF"
-                    iconView.visibility = View.GONE
-                }
-                EffectType.MP4 -> {
-                    iconTv.visibility = View.VISIBLE
-                    iconTv.text = "MP4"
-                    iconView.visibility = View.GONE
-                }
-                EffectType.GIF -> {
-                    iconTv.visibility = View.VISIBLE
-                    iconTv.text = "GIF"
-                    iconView.visibility = View.GONE
-                }
-                EffectType.Select -> {
-                    iconTv.visibility = View.VISIBLE
-                    iconTv.text = "Select"
-                    iconView.visibility = View.GONE
-                }
-                EffectType.Makeup -> {
-                    iconTv.visibility = View.VISIBLE
-                    iconTv.text = "Makeup"
+                    iconTv.text = "Effect"
                     iconView.visibility = View.GONE
                 }
             }
 
-            selectedFrame.visibility = if (selectedEffect == info) {
+            selectedFrame.visibility = if (selectedEffect == effectDir) {
                 View.VISIBLE
             } else {
                 View.INVISIBLE
             }
 
             holder.itemView.setOnClickListener {
-                selectedEffect = info
-                onItemClickListener?.onItemClick(info)
+                selectedEffect = effectDir
+                onItemClickListener?.onItemClick(effectDir)
             }
         }
-
     }
 
     interface OnItemClickListener {
-        fun onItemClick(info: EffectInfo)
+        fun onItemClick(info: String)
     }
 
 }
