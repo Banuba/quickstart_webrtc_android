@@ -14,5 +14,5 @@ An example of banuba_sdk and WebRTC integration
 4. Open the project in Android Studio and run the necessary target using the usual steps.
 
 ### NOTE:
-You can download test effects here: [Effects](https://docs.banuba.com/face-ar-sdk/overview/demo_face_filters)
+You can download test effects here: [Effects](https://docs.banuba.com/face-ar-sdk-v1/overview/demo_face_filters)
 Then put them in the `effects` dir: [`BNBWebRTC/src/main/assets/bnb-resources/effects`](../../tree/master/BNBWebRTC/src/main/assets/bnb-resources/effects) 
