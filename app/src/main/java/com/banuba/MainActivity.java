@@ -265,22 +265,19 @@ public class MainActivity extends AppCompatActivity {
     private void initOEPFramesOutputToTextureView() {
         mOEP.setImageProcessListener(oepImageResult -> {
             if (mVideoSink != null) {
-                int width = oepImageResult.getWidth();
-                int height = oepImageResult.getHeight();
-                int frameSize = width * height;
-                int uPos = frameSize;
-                int vPos = frameSize * 5 / 4;
+                final int width = oepImageResult.getWidth();
+                final int height = oepImageResult.getHeight();
 
                 final ByteBuffer buffer = oepImageResult.getBuffer();
                 mBuffersQueue.retainBuffer(buffer);
-                buffer.position(0).limit(uPos);
-                ByteBuffer dataY = buffer.slice();
-                buffer.position(uPos).limit(vPos);
-                ByteBuffer dataU = buffer.slice();
-                buffer.position(vPos).limit(vPos + frameSize / 4);
-                ByteBuffer dataV = buffer.slice();
+                final ByteBuffer dataY = oepImageResult.getPlaneBuffer(0);
+                final int strideY = oepImageResult.getBytesPerRowOfPlane(0);
+                final ByteBuffer dataU = oepImageResult.getPlaneBuffer(1);
+                final int strideU = oepImageResult.getBytesPerRowOfPlane(1);
+                final ByteBuffer dataV = oepImageResult.getPlaneBuffer(2);
+                final int strideV = oepImageResult.getBytesPerRowOfPlane(2);
 
-                JavaI420Buffer I420buffer = JavaI420Buffer.wrap(width, height, dataY, width, dataU, width / 2, dataV, width / 2, () -> {
+                JavaI420Buffer I420buffer = JavaI420Buffer.wrap(width, height, dataY, strideY, dataU, strideU, dataV, strideV, () -> {
                     JniCommon.nativeFreeByteBuffer(buffer);
                 });
 
