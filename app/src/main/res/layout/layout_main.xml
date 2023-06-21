@@ -1,37 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
 
     <android.view.TextureView
-        android:id="@+id/texture_view"
+        android:id="@+id/textrueView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <ImageButton
-        android:id="@+id/btn_camera_switch"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentRight="true"
-        android:layout_marginTop="16dp"
-        android:layout_marginRight="16dp"
-        android:background="@android:color/transparent"
-        android:src="@mipmap/ic_camera_switch"
-        android:translationZ="1dp"
-        tools:ignore="SpeakableTextPresentCheck" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/effects_view"
-        android:layout_width="match_parent"
+    <Button
+        android:id="@+id/showMaskButton"
+        android:layout_width="140dp"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:background="@android:color/transparent"
-        android:importantForAccessibility="no"
-        android:paddingTop="@dimen/dimen_14dp"
-        android:paddingBottom="@dimen/dimen_14dp" />
+        android:layout_marginBottom="@dimen/dimen_32dp"
+        android:backgroundTint="@color/colorPrimary"
+        android:gravity="center"
+        android:text="@string/show_mask"
+        android:textColor="@android:color/white"
+        app:layout_constraintBottom_toBottomOf="@+id/textrueView"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
-</RelativeLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,3 +1,5 @@
 <resources>
-    <string name="app_name">BNBWebRTCProject</string>
+    <string name="app_name">Banuba FaceAR integration with WebRTC</string>
+    <string name="show_mask">Show mask</string>
+    <string name="hide_mask">Hide mask</string>
 </resources>
