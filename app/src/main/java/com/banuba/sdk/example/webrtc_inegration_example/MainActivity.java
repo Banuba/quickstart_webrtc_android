@@ -220,7 +220,7 @@ public class MainActivity extends AppCompatActivity {
                         1, 1, 1,
                         orientation);
 
-                mOEP.processFullImageData(fullImageData, null, OEPImageFormat.I420_BT601_VIDEO, videoFrame.getTimestampNs());
+                mOEP.processFullImageData(fullImageData, i420Buffer::release, OEPImageFormat.I420_BT601_VIDEO, videoFrame.getTimestampNs());
             }
         });
     }
