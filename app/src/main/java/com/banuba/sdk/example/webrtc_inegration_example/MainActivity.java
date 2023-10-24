@@ -16,14 +16,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 import com.banuba.sdk.effect_player.CameraOrientation;
-import com.banuba.sdk.effect_player.ConsistencyMode;
-import com.banuba.sdk.effect_player.EffectPlayer;
-import com.banuba.sdk.effect_player.EffectPlayerConfiguration;
-import com.banuba.sdk.internal.utils.OrientationHelper;
-import com.banuba.sdk.offscreen.BufferAllocator;
-import com.banuba.sdk.offscreen.OEPImageFormat;
-import com.banuba.sdk.offscreen.OffscreenEffectPlayer;
-import com.banuba.sdk.offscreen.OffscreenSimpleConfig;
+import com.banuba.sdk.frame.FramePixelBufferFormat;
+import com.banuba.sdk.input.StreamInput;
+import com.banuba.sdk.output.FrameOutput;
+import com.banuba.sdk.player.Player;
+import com.banuba.sdk.player.PlayerTouchListener;
+import com.banuba.sdk.types.FrameData;
 import com.banuba.sdk.types.FullImageData;
 
 import org.webrtc.Camera2Capturer;
@@ -38,10 +36,7 @@ import org.webrtc.SurfaceTextureHelper;
 import org.webrtc.ThreadUtils;
 import org.webrtc.VideoFrame;
 
-import java.nio.ByteBuffer;
-import java.util.LinkedList;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 
 public class MainActivity extends AppCompatActivity {
@@ -53,10 +48,8 @@ public class MainActivity extends AppCompatActivity {
     private Camera2Capturer mCamera2Capturer;
     private SurfaceTextureHelper mSurfaceTextureHelper;
 
-    private OffscreenEffectPlayer mOEP;
-    private final BuffersQueue mBuffersQueue = new BuffersQueue();
-
-    private static final String TAG = "MainActivity";
+    private Player mPlayer;
+    private FrameOutput mFrameOutput;
 
     private boolean mShouldApply = false;
 
@@ -66,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.layout_main);
         System.loadLibrary("jingle_peerconnection_so");
 
-        initOEP();
+        mPlayer = new Player();
         initInput();
         initOutput();
 
@@ -74,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
         final Button showMaskButton = findViewById(R.id.showMaskButton);
         showMaskButton.setOnClickListener(v -> {
             mShouldApply = !mShouldApply;
-            mOEP.loadEffect(mShouldApply ? "effects/" + MASK_NAME : "");
+            mPlayer.loadAsync(mShouldApply ? "effects/" + MASK_NAME : "");
             showMaskButton.setText(mShouldApply ? getString(R.string.hide_mask) : getString(R.string.show_mask));
         });
     }
@@ -92,11 +85,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onPause() {
         super.onPause();
+        mPlayer.pause();
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        mPlayer.play();
     }
 
     @Override
@@ -107,7 +102,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onDestroy() {
-        mOEP.release();
+        mPlayer.close();
+        mFrameOutput.close();
         super.onDestroy();
     }
 
@@ -125,17 +121,12 @@ public class MainActivity extends AppCompatActivity {
         return ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
     }
 
-    private void initOEP() {
-        EffectPlayerConfiguration effectPlayerConfig = EffectPlayerConfiguration.create(CAPTURE_SIZE.getWidth(), CAPTURE_SIZE.getHeight());
-        EffectPlayer effectPlayer = Objects.requireNonNull(EffectPlayer.create(effectPlayerConfig));
-        effectPlayer.setRenderConsistencyMode(ConsistencyMode.ASYNCHRONOUS_CONSISTENT);
-
-        OffscreenSimpleConfig oepConfig = OffscreenSimpleConfig.newBuilder(mBuffersQueue).build();
-        mOEP = new OffscreenEffectPlayer(this, effectPlayer, CAPTURE_SIZE, oepConfig);
-    }
-
+    @SuppressLint("ClickableViewAccessibility")
     private void initOutput() {
         final TextureView textureView = findViewById(R.id.textrueView);
+
+        // Set custom OnTouchListener to change mask style.
+        textureView.setOnTouchListener(new PlayerTouchListener(this, mPlayer));
 
         // create textrue renderer
         final EglRenderer renderer = new EglRenderer("textureView");
@@ -169,27 +160,31 @@ public class MainActivity extends AppCompatActivity {
 
         // draw frames with renderer
         final Handler handler = mSurfaceTextureHelper.getHandler();
-
-        mOEP.setImageProcessListener(oepImageResult -> {
+        mFrameOutput = new FrameOutput((iOutput, framePixelBuffer) -> handler.post(() -> {
             final JavaI420Buffer i420buffer = JavaI420Buffer.wrap(
-                oepImageResult.getWidth(),
-                oepImageResult.getHeight(),
-                oepImageResult.getPlaneBuffer(0),
-                oepImageResult.getBytesPerRowOfPlane(0),
-                oepImageResult.getPlaneBuffer(1),
-                oepImageResult.getBytesPerRowOfPlane(1),
-                oepImageResult.getPlaneBuffer(2),
-                oepImageResult.getBytesPerRowOfPlane(2),
-                null);
-            final VideoFrame videoFrame = new VideoFrame(i420buffer, oepImageResult.getOrientation().getRotationAngle(), oepImageResult.getTimestamp());
+                    framePixelBuffer.getWidth(),
+                    framePixelBuffer.getHeight(),
+                    framePixelBuffer.getPlane(0),
+                    framePixelBuffer.getBytesPerRowOfPlane(0),
+                    framePixelBuffer.getPlane(1),
+                    framePixelBuffer.getBytesPerRowOfPlane(1),
+                    framePixelBuffer.getPlane(2),
+                    framePixelBuffer.getBytesPerRowOfPlane(2),
+                    null);
+            final VideoFrame videoFrame = new VideoFrame(i420buffer, 0, System.nanoTime());
             renderer.onFrame(videoFrame);
             videoFrame.release();
-            mBuffersQueue.retainBuffer(oepImageResult.getBuffer());
-        }, handler);
+        }));
+        mFrameOutput.setFormat(FramePixelBufferFormat.I420_BT601_FULL);
+
+        // attach output to the player
+        mPlayer.use(mFrameOutput);
     }
 
-    @SuppressLint("RestrictedApi")
     private void initInput() {
+        // the stream input will be provide frames from Camera2 to the Player
+        final StreamInput streamInput = new StreamInput();
+
         // capture from the Front camera
         final CameraEnumerator enumerator = new Camera2Enumerator(this);
         mCamera2Capturer = new Camera2Capturer(this, enumerator.getDeviceNames()[1], null);
@@ -207,7 +202,8 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onFrameCaptured(VideoFrame videoFrame) {
-                final FullImageData.Orientation orientation = OrientationHelper.getOrientation(videoFrame.getRotation(), 0, true);
+                final CameraOrientation cameraOrientation = CameraOrientation.values()[(videoFrame.getRotation() / 90) % 4];
+                final FullImageData.Orientation orientation = new FullImageData.Orientation(cameraOrientation, true, 0);
                 final VideoFrame.I420Buffer i420Buffer = videoFrame.getBuffer().toI420();
                 final FullImageData fullImageData = new FullImageData(
                         new Size(i420Buffer.getWidth(), i420Buffer.getHeight()),
@@ -220,32 +216,14 @@ public class MainActivity extends AppCompatActivity {
                         1, 1, 1,
                         orientation);
 
-                mOEP.processFullImageData(fullImageData, i420Buffer::release, OEPImageFormat.I420_BT601_VIDEO, videoFrame.getTimestampNs());
+                final FrameData frameData = Objects.requireNonNull(FrameData.create());
+                frameData.addFullImg(fullImageData);
+                i420Buffer.release();
+                streamInput.push(frameData, videoFrame.getTimestampNs());
             }
         });
-    }
 
-    private static class BuffersQueue implements BufferAllocator {
-        private final int capacity = 4;
-        private final Queue<ByteBuffer> queue = new LinkedList<>();
-
-        @NonNull
-        @Override
-        public synchronized ByteBuffer allocateBuffer(int minimumCapacity) {
-            final ByteBuffer buffer = queue.poll();
-            if (buffer != null && buffer.capacity() >= minimumCapacity) {
-                buffer.rewind().limit();
-                buffer.limit(buffer.capacity());
-                return buffer;
-            } else {
-                return ByteBuffer.allocateDirect(minimumCapacity);
-            }
-        }
-
-        public synchronized void retainBuffer(@NonNull ByteBuffer buffer) {
-            if (queue.size() < capacity) {
-                queue.add(buffer);
-            }
-        }
+        // attach input to the player
+        mPlayer.use(streamInput);
     }
 }
