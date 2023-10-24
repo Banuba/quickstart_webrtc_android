@@ -19,7 +19,6 @@ import com.banuba.sdk.effect_player.CameraOrientation;
 import com.banuba.sdk.frame.FramePixelBufferFormat;
 import com.banuba.sdk.input.StreamInput;
 import com.banuba.sdk.output.FrameOutput;
-import com.banuba.sdk.player.IDirectBufferAllocator;
 import com.banuba.sdk.player.Player;
 import com.banuba.sdk.player.PlayerTouchListener;
 import com.banuba.sdk.types.FrameData;
@@ -37,10 +36,7 @@ import org.webrtc.SurfaceTextureHelper;
 import org.webrtc.ThreadUtils;
 import org.webrtc.VideoFrame;
 
-import java.nio.ByteBuffer;
-import java.util.LinkedList;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 
 public class MainActivity extends AppCompatActivity {
@@ -54,7 +50,6 @@ public class MainActivity extends AppCompatActivity {
 
     private Player mPlayer;
     private FrameOutput mFrameOutput;
-    private final BuffersQueue mBuffersQueue = new BuffersQueue(4);
 
     private boolean mShouldApply = false;
 
@@ -165,7 +160,7 @@ public class MainActivity extends AppCompatActivity {
 
         // draw frames with renderer
         final Handler handler = mSurfaceTextureHelper.getHandler();
-        mFrameOutput = new FrameOutput(framePixelBuffer -> handler.post(() -> {
+        mFrameOutput = new FrameOutput((iOutput, framePixelBuffer) -> handler.post(() -> {
             final JavaI420Buffer i420buffer = JavaI420Buffer.wrap(
                     framePixelBuffer.getWidth(),
                     framePixelBuffer.getHeight(),
@@ -179,8 +174,7 @@ public class MainActivity extends AppCompatActivity {
             final VideoFrame videoFrame = new VideoFrame(i420buffer, 0, System.nanoTime());
             renderer.onFrame(videoFrame);
             videoFrame.release();
-            mBuffersQueue.retainBuffer(framePixelBuffer.getBuffer());
-        }), mBuffersQueue);
+        }));
         mFrameOutput.setFormat(FramePixelBufferFormat.I420_BT601_FULL);
 
         // attach output to the player
@@ -231,31 +225,5 @@ public class MainActivity extends AppCompatActivity {
 
         // attach input to the player
         mPlayer.use(streamInput);
-    }
-
-    //
-    public static class BuffersQueue implements IDirectBufferAllocator {
-        private final int mCapacity;
-        private final Queue<ByteBuffer> mQueue = new LinkedList<>();
-
-        public BuffersQueue(int capacity) {
-            mCapacity = capacity;
-        }
-
-        @NonNull
-        public synchronized ByteBuffer allocateBuffer(int capacity) {
-            final ByteBuffer buffer = mQueue.poll();
-            if (buffer != null && buffer.capacity() == capacity) {
-                buffer.rewind();
-                return buffer;
-            }
-            return ByteBuffer.allocateDirect(capacity);
-        }
-
-        public synchronized void retainBuffer(@NonNull ByteBuffer buffer) {
-            if (mQueue.size() < mCapacity) {
-                mQueue.add(buffer);
-            }
-        }
     }
 }
